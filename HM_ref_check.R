@@ -25,11 +25,11 @@ library(phyloseq)
   ## Make sure that the tax and shared files are in the working directory
   ## Copy shared, tax, and map file names with extension to corresponding values
   ## Assign variables for data that will be imported
-sharedfile_gg = "HM_gg.trim.contigs.good.unique.good.filter.unique.precluster.pick.opti_mcc.shared"
-taxfile_gg = "HM_gg.trim.contigs.good.unique.good.filter.unique.precluster.pick.opti_mcc.0.03.cons.taxonomy"
+sharedfile_gg = "HM_gg.trim.contigs.good.unique.good.filter.unique.precluster.pick.pick.opti_mcc.shared"
+taxfile_gg = "HM_gg.trim.contigs.good.unique.good.filter.unique.precluster.pick.pick.opti_mcc.0.03.cons.taxonomy"
   ## Repeat for RPD ref database
-sharedfile_rpd = "HM_rpd.trim.contigs.good.unique.good.filter.unique.precluster.pick.opti_mcc.shared"
-taxfile_rpd = "HM_rpd.trim.contigs.good.unique.good.filter.unique.precluster.pick.opti_mcc.0.03.cons.taxonomy"
+sharedfile_rpd = "HM_rdp.trim.contigs.good.unique.good.filter.unique.precluster.pick.pick.opti_mcc.shared"
+taxfile_rpd = "HM_rdp.trim.contigs.good.unique.good.filter.unique.precluster.pick.pick.opti_mcc.0.03.cons.taxonomy"
 
 
   ## ------- IMPORT MOTHUR DATA -----------
