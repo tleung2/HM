@@ -94,6 +94,7 @@ rdp.prune.data@tax_table  ## lists the taxonomy
 
 ############################################################################################
   ## ------- CHECKING COMMUNITY IN DATA --------------------
+
   ## Use %>% to pass from left to right operator (chain functions together)
   ## epa.data %>% tax_glom() = tax_glom(epa.data)
   ## Change the rank to something you want
@@ -101,13 +102,13 @@ rdp.prune.data@tax_table  ## lists the taxonomy
   ## First, we need to reshape the data in a table format to see what 
   ## organisms were present
 gg.species <- gg.prune.data %>%
-  tax_glom(taxrank = "Species") %>%                     # agglomerate at Genus level
+  tax_glom(taxrank = "Phylum") %>%                     # agglomerate at Genus level
   transform_sample_counts(function(x) {x/sum(x)} ) %>% # Transform to rel. abundance
   psmelt() %>%                                         # Melt to long format
   arrange(Phylum)                                      # Sort data frame alphabetically by phylum
 
    ## Write a csv file of the gg table
-write.table(gg.species, "HM_gg_species.csv", row.names = FALSE, sep = ";")
+write.table(gg.species, "HM_gg_abundance.csv", row.names = FALSE, sep = ";")
 
 
   ## Repeat for rdp ref database
@@ -128,6 +129,11 @@ write.table(rdp.species, "HM_rdp_species.csv", row.names = FALSE, sep = ";")
   ## We wanted to include only photosynthetic aquatic eukaryotes and exclude all others
   ## *Note that some reference database use Dinophyta whereas others use Dinoflagellata
 gg.cyano.data <- subset_taxa(gg.prune.data, Phylum == "p__Cyanobacteria")
+cyano.species <- gg.cyano.data %>%
+  tax_glom(taxrank = "Order") %>%                     # agglomerate at Genus level
+  transform_sample_counts(function(x) {x/sum(x)} ) %>% # Transform to rel. abundance
+  psmelt() %>%                                         # Melt to long format
+  arrange(Phylum)                                      # Sort data frame alphabetically by phylum
 
   ## Repeat for rdp ref database
 rdp.cyano.data <- subset_taxa(rdp.prune.data, Phylum == "Cyanobacteria")
@@ -148,8 +154,7 @@ ggplot(sample_sum_df, aes(x = sum)) +
 
 
 ############################################################################################
-  ## -------------------------- CHECKING DIVERSITY ----------------------------------- ##
-  #######################################################################################
+  #####-----------------------  CHECKING DIVERSITY ------------------#########
   
   ## This function estimates a number of alpha-diversity metrics and returns 
   ## a ggplot plotting object
@@ -160,7 +165,7 @@ ggplot(sample_sum_df, aes(x = sum)) +
   ## See the R help for what kinds of Alpha diversity metrics can be used
   ## --- How does diversity vary with depth over time? ---
   ## Plot Depth as x-axis, and identify Month by different shapes
-P1 = plot_richness(gg.prune.data, x="Depth", shape="Month", measures=c("Shannon")) +
+P1 = plot_richness(gg.cyano.data, x="Depth", shape="Month", measures=c("Shannon")) +
   geom_point(size=5) + labs(x = "Depth (m)") + 
   theme(panel.grid.major = element_blank(), 
         panel.grid.minor = element_blank(),
@@ -175,12 +180,11 @@ P1 = plot_richness(gg.prune.data, x="Depth", shape="Month", measures=c("Shannon"
 P1
 
 #########################################################################################
-  ## ----------------------- RAREFRACTION CURVE: CYANOBACTERIA ---------------------- ##
-  ######################################################################################  
+  ######------------- RAREFRACTION CURVE: CYANOBACTERIA -----------------######  
 
   ## The rarecurve function is part of "vegan" package, not phyloseq
   ## Make rarefaction curve
-rarecurve(t(otu_table(gg_merge)), step=50, cex=0.5)
+rarecurve(t(otu_table(gg.prune.data)), step=50, cex=0.5)
   ## rarefy without replacement
 ps.rarefied = rarefy_even_depth(gg.cyano.data, rngseed=1, sample.size=0.9*min(sample_sums(gg.cyano.data)), replace=F)
 ps.rarefied
@@ -195,10 +199,11 @@ plot_bar(ps.phylum, fill="Rank2") + facet_wrap(~Month, scales= "free_x", nrow=1)
 
 
 #########################################################################################
-  ## --------------------BARPLOTS USING PHYLOSEQ ----------------------------------- ##
-  ####################################################################################
-p <- plot_bar(gg.prune.data, fill="Phylum") + facet_wrap(~Month, scales= "free_x", ncol=1)
-p + geom_bar(aes(color=Phylum, fill=Phylum), stat="identity", position="stack") +
+  #######------------------- BARPLOTS USING PHYLOSEQ -------------------########
+
+
+p <- plot_bar(gg.prune.data, fill="Order") + facet_wrap(~Month, scales= "free_x", ncol=2)
+p + geom_bar(aes(color=Order, fill=Order), stat="identity", position="stack") +
   theme(axis.title.x = element_text(size = 14), 
         axis.title.y = element_text(size = 14), 
         panel.background = element_blank(),
@@ -214,30 +219,30 @@ p + geom_bar(aes(color=Phylum, fill=Phylum), stat="identity", position="stack") 
 
 
 ############################################################################################
-  ## ------- RESHAPE DATA FOR BARPLOT (RAW COUNTS)---------
-  ## Data needs to be reshaped for ggplot
+  ########----------- MAKE BARPLOT USING GGPLOT (RAW COUNTS) -----------#######
+
+  ## Phyloseq data needs to be reshaped for ggplot
   ## This will produce relative abundance 
   ## We break it down to "Species" tax but this can be changed
-gg.cyano.counts <- gg.cyano.data %>%
-  tax_glom(taxrank = "Species") %>%                     # agglomerate at Order level
+gg.cyano.RA <- gg.cyano.data %>%
+  tax_glom(taxrank = "Order") %>%                     # agglomerate at Order level
+  transform_sample_counts(function(x) {x/sum(x)} ) %>% # Transform to rel. abundance
   psmelt() %>%                                         # Melt to long format
   #filter(Abundance > 0.02) %>%                         # Filter out low abundance taxa
   arrange(Phylum)                                      # Sort data frame alphabetically by phylum
 
   ## Check Order (or any other taxa)
-levels(gg.cyano.species$Order)
+levels(gg.cyano.RA$Order)   ## If show NULL, go to next step
   ## If the command: levels(epa_order$Order or any tax column) shows NULL 
   ## Need to convert taxonomy columns to factor, R ver. 4.0.2 identifies these as character
   ## SKip this if your R ver identifies taxonomy as factor
-gg.cyano.counts[,c(8:15)] <- lapply(gg.cyano.counts[,c(8:15)], as.factor) #convert phyla to factor
-levels(gg.cyano.counts$Phylum) # should see levels (taxa), check that haptophyte exists
-  ## ------- EXPORT SUBSETTED DATA ---- skip if not needed---------
-  ##  Exports the transformed subset dataframe if needed
-write.table(photo.counts, "name_file.csv", row.names = FALSE, sep = ";")
+gg.cyano.RA[,c(9:12)] <- lapply(gg.cyano.RA[,c(9:12)], as.factor) #convert phyla to factor
+levels(gg.cyano.RA$Phylum) # should see levels (taxa), check that haptophyte exists
 
+gg.species[,c(9:10)] <- lapply(gg.species[,c(9:10)], as.factor) #convert phyla to factor
+levels(gg.species$Phylum)
+  ##  --- MAKING BARPLOTS ---  ##
 
-############################################################################################
-  ## ------- COMMUNITY COMPOSITION : BARPLOTS (RAW COUNTS)------------
   ##  Using stacked bar plots to look at community composition
   ##  Set colors for plotting
   ##  For this project, interested in 5 phyla (subgroups)
@@ -245,22 +250,22 @@ write.table(photo.counts, "name_file.csv", row.names = FALSE, sep = ";")
 phylum_colors <- c("#669900", "#CCCFFF", "#CC9933","#663300", "#FFCC66")
 
   ## Plot stacked bargraph
-p2<-ggplot(data = gg.cyano.counts, aes(x = Abundance, y = reorder(Depth, desc(Depth)), fill = Phylum)) + 
+p2<-ggplot(data = gg.species, aes(y = Abundance, x = reorder(Depth, desc(Depth)), fill = Phylum)) + 
   geom_bar(stat = "identity") +
-  scale_fill_manual(values = phylum_colors) +
+  #scale_fill_manual(values = phylum_colors) +
   guides(fill = guide_legend(reverse = TRUE, keywidth = 1, keyheight = 1)) +
-  labs(x = "Abundance", y = "Depth(m)") +
+  labs(y = "Relative Abundance", x = "Depth(m)") +
   #ggtitle("Phylum Composition of Photosynthetic Eukaryotic Community") +
-  theme(axis.title.x = element_text(size = 14), 
-        axis.title.y = element_text(size = 14), 
+  theme(axis.title.x = element_text(size = 16), 
+        axis.title.y = element_text(size = 16), 
         panel.background = element_blank(),
         plot.title = element_text(size = 22),
         panel.grid.major = element_blank(),   ## Change this to element_line if you want lines
-        axis.text = element_text(size = 14, color = "black"), 
+        axis.text = element_text(size = 16, color = "black"), 
         panel.grid.major.x = element_blank(),
         panel.border = element_rect(color="black", fill=NA),
-        strip.text = element_text(size = 14),
-        legend.text = element_text(size = 14),
+        strip.text = element_text(size = 16),
+        legend.text = element_text(size = 16),
         legend.title = element_text(size = 22)) +
         facet_wrap(~Month, ncol = 1, scales = "free")   ## ncol = # columns
 p2
