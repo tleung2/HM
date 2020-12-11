@@ -17,6 +17,7 @@ library(tidyverse) ## Package includes ggplot and dplyr
 library(scales)
 library(gridGraphics) 
 library(reshape2)
+library(vegan)
 library(phyloseq)
 
 
@@ -27,9 +28,9 @@ library(phyloseq)
   ## Assign variables for data that will be imported
 sharedfile_gg = "HM_gg.trim.contigs.good.unique.good.filter.unique.precluster.pick.pick.opti_mcc.shared"
 taxfile_gg = "HM_gg.trim.contigs.good.unique.good.filter.unique.precluster.pick.pick.opti_mcc.0.03.cons.taxonomy"
-  ## Repeat for RPD ref database
-sharedfile_rpd = "HM_rdp.trim.contigs.good.unique.good.filter.unique.precluster.pick.pick.opti_mcc.shared"
-taxfile_rpd = "HM_rdp.trim.contigs.good.unique.good.filter.unique.precluster.pick.pick.opti_mcc.0.03.cons.taxonomy"
+  ## Repeat for rdp ref database
+sharedfile_rdp = "HM_rdp.trim.contigs.good.unique.good.filter.unique.precluster.pick.pick.opti_mcc.shared"
+taxfile_rdp = "HM_rdp.trim.contigs.good.unique.good.filter.unique.precluster.pick.pick.opti_mcc.0.03.cons.taxonomy"
 
 
   ## ------- IMPORT MOTHUR DATA -----------
@@ -37,12 +38,12 @@ taxfile_rpd = "HM_rdp.trim.contigs.good.unique.good.filter.unique.precluster.pic
 gg_data<-import_mothur(mothur_shared_file = sharedfile_gg,
                            mothur_constaxonomy_file = taxfile_gg)
 
-  ## Repeat for RPD ref database
-rpd_data<-import_mothur(mothur_shared_file = sharedfile_rpd,
-                       mothur_constaxonomy_file = taxfile_rpd)
+  ## Repeat for rdp ref database
+rdp_data<-import_mothur(mothur_shared_file = sharedfile_rdp,
+                       mothur_constaxonomy_file = taxfile_rdp)
   ## ------- EXAMINING MOTHUR DATA-------
   ## check the tax names, which are organized as ranks in columns
-head(tax_table(rpd_data)) 
+head(tax_table(rdp_data)) 
 head(tax_table(gg_data)) 
 
 ############################################################################################
@@ -58,22 +59,22 @@ map2 <- sample_data(map)
 
   ## Assign ID created by Mothur as rownames (NOT SAMPLE ID!)
   ## This will allow phyloseq to merge Mothur output with mapfile
-rownames(map2) <- map2$Mothur_ID
-
+rownames(map2) <- map2$Mothur_ID 
+map2$Depth <- factor(map2$Depth, levels=c('0','1', '2', '3', '4', '5', '5.1', '5.8','6', '6.8','7', '8', '9', '9.5','10'))
   ## Merge mothurdata with sample metadata
   ## Phyloseq will merge both datasets using the Mothur_ID
 gg_merge <- merge_phyloseq(gg_data, map2)
-rpd_merge <- merge_phyloseq(rpd_data, map2)
+rdp_merge <- merge_phyloseq(rdp_data, map2)
 
 
 colnames(tax_table(gg_merge))  ## Check to see how many tax ranks there are
-colnames(tax_table(gg_merge)) <- c("Domain","Kingdom", "Phylum", "Class", 
+colnames(tax_table(gg_merge)) <- c("Kingdom", "Phylum", "Class", 
                                      "Order", "Family", "Genus", "Species") ## assigns names
 
-  ## Repeat for RPD ref database
-colnames(tax_table(rpd_merge))  ## Check to see how many tax ranks there are
-colnames(tax_table(rpd_merge)) <- c("Domain","Kingdom", "Phylum", "Class", 
-                                   "Order", "Family", "Genus", "Species") ## assigns names
+  ## Repeat for rdp ref database
+colnames(tax_table(rdp_merge))  ## Check to see how many tax ranks there are
+colnames(tax_table(rdp_merge)) <- c("Kingdom", "Phylum", "Class", 
+                                   "Order", "Family", "Genus") ## assigns names
 
 ############################################################################################
   ## ------- PRUNING THE DATASET -------------
@@ -85,10 +86,10 @@ gg.prune.data <- gg_merge %>%
 gg.prune.data@tax_table  ## lists the taxonomy
 
 
-  ## Repeat for RPD ref database
-rpd.prune.data <- rpd_merge %>%
+  ## Repeat for rdp ref database
+rdp.prune.data <- rdp_merge %>%
   prune_taxa(taxa_sums(.) > 1e-5, .) ## Value can be changed accordingly
-rpd.prune.data@tax_table  ## lists the taxonomy
+rdp.prune.data@tax_table  ## lists the taxonomy
 
 
 ############################################################################################
@@ -109,15 +110,15 @@ gg.species <- gg.prune.data %>%
 write.table(gg.species, "HM_gg_species.csv", row.names = FALSE, sep = ";")
 
 
-  ## Repeat for RPD ref database
-rpd.species <- rpd.prune.data %>%
-  tax_glom(taxrank = "Species") %>%                     # agglomerate at Genus level
+  ## Repeat for rdp ref database
+rdp.species <- rdp.prune.data %>%
+  tax_glom(taxrank = "Genus") %>%                     # agglomerate at Genus level
   transform_sample_counts(function(x) {x/sum(x)} ) %>% # Transform to rel. abundance
   psmelt() %>%                                         # Melt to long format
   arrange(Phylum)                                      # Sort data frame alphabetically by phylum
 
-  ## Write a csv file of the rpd table
-write.table(rpd.species, "HM_rpd_species.csv", row.names = FALSE, sep = ";")
+  ## Write a csv file of the rdp table
+write.table(rdp.species, "HM_rdp_species.csv", row.names = FALSE, sep = ";")
 
 
 ############################################################################################
@@ -126,17 +127,17 @@ write.table(rpd.species, "HM_rpd_species.csv", row.names = FALSE, sep = ";")
   ## Species table shows both non-photosynthetic and photosynthetic eukaryotes
   ## We wanted to include only photosynthetic aquatic eukaryotes and exclude all others
   ## *Note that some reference database use Dinophyta whereas others use Dinoflagellata
-gg.cyano.data <- subset_taxa(gg.prune.data, Phylum == "Cyanobacteria")
+gg.cyano.data <- subset_taxa(gg.prune.data, Phylum == "p__Cyanobacteria")
 
-  ## Repeat for RPD ref database
-rpd.cyano.data <- subset_taxa(rpd.prune.data, Phylum == "Cyanobacteria")
+  ## Repeat for rdp ref database
+rdp.cyano.data <- subset_taxa(rdp.prune.data, Phylum == "Cyanobacteria")
 
 ############################################################################################
   ## ------- LOOK AT DISTRIBUTION OF READ COUNTS  -------------
   ## Make a data frame with a column for the read counts of each sample
 sample_sum_df <- data.frame(sum = sample_sums(gg.cyano.data))
 
-sample_sum_df2 <- data.frame(sum = sample_sums(rpd.cyano.data))
+sample_sum_df2 <- data.frame(sum = sample_sums(rdp.cyano.data))
 
   ## Histogram of sample read counts
 ggplot(sample_sum_df, aes(x = sum)) + 
@@ -147,7 +148,9 @@ ggplot(sample_sum_df, aes(x = sum)) +
 
 
 ############################################################################################
-  ## ------- CHECKING DIVERSITY -----------
+  ## -------------------------- CHECKING DIVERSITY ----------------------------------- ##
+  #######################################################################################
+  
   ## This function estimates a number of alpha-diversity metrics and returns 
   ## a ggplot plotting object
   ## You must use untrimmed, non-normalized count data for meaningful results,
@@ -157,19 +160,59 @@ ggplot(sample_sum_df, aes(x = sum)) +
   ## See the R help for what kinds of Alpha diversity metrics can be used
   ## --- How does diversity vary with depth over time? ---
   ## Plot Depth as x-axis, and identify Month by different shapes
-P1 = plot_richness(photo.data, x="Depth", shape="Month", measures=c("Shannon","Observed")) +
-  geom_point(size=3) + labs(x = "Depth (m)") + 
+P1 = plot_richness(gg.prune.data, x="Depth", shape="Month", measures=c("Shannon")) +
+  geom_point(size=5) + labs(x = "Depth (m)") + 
   theme(panel.grid.major = element_blank(), 
         panel.grid.minor = element_blank(),
         panel.background = element_blank(),
         panel.border = element_rect(color="black", fill=NA),
-        text = element_text(size = 14),
+        text = element_text(size = 16),
         axis.line = element_line(colour = "black"),
-        axis.text=element_text(size=14), 
-        axis.title = element_text(size = 14),
-        legend.text = element_text(size = 14),
+        axis.text=element_text(size=16), 
+        axis.title = element_text(size = 16),
+        legend.text = element_text(size = 16),
         legend.key=element_rect(fill='white'))
 P1
+
+#########################################################################################
+  ## ----------------------- RAREFRACTION CURVE: CYANOBACTERIA ---------------------- ##
+  ######################################################################################  
+
+  ## The rarecurve function is part of "vegan" package, not phyloseq
+  ## Make rarefaction curve
+rarecurve(t(otu_table(gg_merge)), step=50, cex=0.5)
+  ## rarefy without replacement
+ps.rarefied = rarefy_even_depth(gg.cyano.data, rngseed=1, sample.size=0.9*min(sample_sums(gg.cyano.data)), replace=F)
+ps.rarefied
+rarecurve(t(otu_table(ps.rarefied)), step=50, cex=0.5)
+  ## rarefied dataset
+plot_bar(ps.rarefied, fill="Order")
+#rarefied dataset by month
+plot_bar(ps.rarefied, fill="Order") + facet_wrap(Month~., scales="free_x", nrow=1)
+ps.phylum = tax_glom(ps.rarefied, taxrank="Rank2", NArm=FALSE)            
+ps.phylum
+plot_bar(ps.phylum, fill="Rank2") + facet_wrap(~Month, scales= "free_x", nrow=1)
+
+
+#########################################################################################
+  ## --------------------BARPLOTS USING PHYLOSEQ ----------------------------------- ##
+  ####################################################################################
+p <- plot_bar(gg.prune.data, fill="Phylum") + facet_wrap(~Month, scales= "free_x", ncol=1)
+p + geom_bar(aes(color=Phylum, fill=Phylum), stat="identity", position="stack") +
+  theme(axis.title.x = element_text(size = 14), 
+        axis.title.y = element_text(size = 14), 
+        panel.background = element_blank(),
+        plot.title = element_text(size = 22),
+        panel.grid.major = element_blank(),   ## Change this to element_line if you want lines
+        axis.text = element_text(size = 14, color = "black"), 
+        panel.grid.major.x = element_blank(),
+        panel.border = element_rect(color="black", fill=NA),
+        strip.text = element_text(size = 14),
+        legend.text = element_text(size = 14),
+        legend.title = element_text(size = 22))
+
+
+
 ############################################################################################
   ## ------- RESHAPE DATA FOR BARPLOT (RAW COUNTS)---------
   ## Data needs to be reshaped for ggplot
